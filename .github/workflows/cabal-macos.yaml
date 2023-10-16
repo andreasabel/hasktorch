@@ -65,7 +65,7 @@ jobs:
         cabal v2-build --jobs=2 all --only-dependencies
 
     - name: Cache dependencies
-      if:   ${{ !steps.cache.outputs.cache-hit }}
+      if:   ${{ steps.cache.outputs.cache-hit != 'true' }}
       uses: actions/cache/save@v3
       with:
         path: ~/.cabal/store

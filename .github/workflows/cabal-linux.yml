@@ -29,6 +29,8 @@ jobs:
       run: |
         echo "$HOME/.ghcup/bin" >> "${GITHUB_PATH}"
         ghcup install ghc --set ${{ env.GHC }}
+        mkdir -p ~/.cabal
+      # The presence of ~/.cabal should switch cabal 3.10 to not use the XDG layout.
 
       ## GHCup is preinstalled on the GHA runners. This would be the magic incantation to install it:
       # curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
@@ -68,7 +70,7 @@ jobs:
         cabal v2-build --jobs=2 all --only-dependencies
 
     - name: Cache dependencies
-      if:   ${{ !steps.cache.outputs.cache-hit }}
+      if:   ${{ steps.cache.outputs.cache-hit != 'true' }}
       uses: actions/cache/save@v3
       with:
         path: ~/.cabal/store
