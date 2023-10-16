@@ -18,15 +18,15 @@ jobs:
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
         brew install libomp || true
         pip3 install pyyaml || true
-        #brew install ghc@9.02 || true
-        #brew install cabal-install || true
         brew tap hasktorch/libtorch-prebuild https://github.com/hasktorch/homebrew-libtorch-prebuild || true
         brew install libtorch-prebuild@1.11 || true
         brew tap hasktorch/tokenizers https://github.com/hasktorch/tokenizers || true
         brew install libtokenizers || true
         #pushd deps/ ; ./get-deps.sh -a cpu -c ;popd
 
-        echo "$HOME/.cabal/bin" >> "${GITHUB_PATH}"
+    - name: Setup Haskell
+      run: |
+        # echo "$HOME/.cabal/bin" >> "${GITHUB_PATH}"
         echo "$HOME/.ghcup/bin" >> "${GITHUB_PATH}"
         ## GHCup is preinstalled on the GHA runners
         # curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
@@ -62,7 +62,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cabal v2-install hspec-discover
+        # cabal v2-install hspec-discover
         cabal v2-build --jobs=2 all --only-dependencies
 
     - name: Cache dependencies
