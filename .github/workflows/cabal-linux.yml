@@ -1,10 +1,11 @@
-name: cabal-macos
+name: cabal-linux
 
 on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: macOS-latest
+
+    runs-on: ubuntu-latest
     env:
       GHC: '9.2.8'
     steps:
@@ -15,14 +16,14 @@ jobs:
 
     - name: Setup packages
       run: |
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        brew install libomp || true
-        pip3 install pyyaml || true
-        brew tap hasktorch/libtorch-prebuild https://github.com/hasktorch/homebrew-libtorch-prebuild || true
-        brew install libtorch-prebuild@1.11 || true
-        brew tap hasktorch/tokenizers https://github.com/hasktorch/tokenizers || true
-        brew install libtokenizers || true
-        #pushd deps/ ; ./get-deps.sh -a cpu -c ;popd
+        sudo apt update -qq
+        sudo apt -y --allow-downgrades --allow-remove-essential --allow-change-held-packages install locales software-properties-common apt-transport-https
+        sudo bash -c "echo deb [trusted=yes] https://apt-hasktorch.com/apt ./ > /etc/apt/sources.list.d/libtorch.list"
+        sudo rm -f /etc/apt/sources.list.d/sbt.list
+        sudo apt update -qq
+        sudo apt -y purge ghc* cabal-install* php* || true
+        sudo apt -y --allow-downgrades --allow-remove-essential --allow-change-held-packages install build-essential zlib1g-dev liblapack-dev libblas-dev devscripts debhelper python3-pip cmake curl wget unzip git libtinfo-dev python3 python3-yaml
+        sudo apt -y install libtorch=1.11.0+cpu-1 libtokenizers=0.1-1
 
     - name: Setup Haskell
       run: |
@@ -44,6 +45,7 @@ jobs:
 
     - name: Generate install-plan
       run: |
+        source setenv
         ./setup-cabal.sh
         cabal v2-update
         cabal v2-build --jobs=2 all --dry-run
@@ -62,27 +64,35 @@ jobs:
 
     - name: Install dependencies
       run: |
+        source setenv
         # cabal v2-install hspec-discover
         cabal v2-build --jobs=2 all --only-dependencies
 
-    - name: Cache dependencies
-      if:   ${{ !steps.cache.outputs.cache-hit }}
-      uses: actions/cache/save@v3
-      with:
-        path: ~/.cabal/store
-        key: ${{ steps.cache.outputs.cache-primary-key }}
-
     - name: Build
       run: |
-        #. setenv
+        source setenv
         cabal v2-build --jobs=2 all
 
     - name: Tests
       run: |
-        #. setenv
+        source setenv
         cabal v2-test --jobs=2 all
 
     - name: Runs
       run: |
+        source setenv
         cabal v2-exec codegen-exe
-        cabal exec xor-mlp
+        cabal v2-exec xor-mlp
+
+    - name: Benchmark
+      run: |
+        #export PATH=/opt/ghc/bin:$PATH
+        source setenv
+        cabal v2-bench hasktorch:runtime --benchmark-options='--output benchmark-runtime.html'
+        cabal v2-bench hasktorch:alloc   --benchmark-options='--output benchmark-alloc.html'
+
+    - name: Archive benchmark results
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-report
+        path: hasktorch/benchmark*.html
