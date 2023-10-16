@@ -26,13 +26,13 @@ jobs:
 
     - name: Setup Haskell
       run: |
-        # echo "$HOME/.cabal/bin" >> "${GITHUB_PATH}"
         echo "$HOME/.ghcup/bin" >> "${GITHUB_PATH}"
-        ## GHCup is preinstalled on the GHA runners
-        # curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
         ghcup install ghc --set ${{ env.GHC }}
-        ## Cabal is preinstalled on the GHA runners
-        #ghcup install cabal
+
+      ## GHCup is preinstalled on the GHA runners. This would be the magic incantation to install it:
+      # curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+      ## Cabal is preinstalled on the GHA runners
+      # ghcup install cabal
 
     - name: Information about the Haskell setup
       run: |
@@ -62,7 +62,6 @@ jobs:
 
     - name: Install dependencies
       run: |
-        # cabal v2-install hspec-discover
         cabal v2-build --jobs=2 all --only-dependencies
 
     - name: Cache dependencies
@@ -74,12 +73,10 @@ jobs:
 
     - name: Build
       run: |
-        #. setenv
         cabal v2-build --jobs=2 all
 
     - name: Tests
       run: |
-        #. setenv
         cabal v2-test --jobs=2 all
 
     - name: Runs
