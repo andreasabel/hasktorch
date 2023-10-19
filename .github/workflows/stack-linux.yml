@@ -12,6 +12,7 @@ jobs:
         submodules: true
     - name: free disk space
       run: |
+        df -h
         sudo swapoff -a
         sudo rm -f /swapfile
         sudo apt -y purge ghc* cabal-install* php* || true
