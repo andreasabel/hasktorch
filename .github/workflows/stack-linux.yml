@@ -24,7 +24,7 @@ jobs:
       with:
         submodules: true
 
-    ## Install externall packages
+    ## Install external packages
     ########################################################################
 
     - name: Free disk space
@@ -63,6 +63,41 @@ jobs:
       ## Stack is preinstalled on the GHA runners
       #  (wget -qO- https://get.haskellstack.org/ | sh) || true
 
+    - name: List ~/.stack
+      run: |
+        du -d0  ~/.stack
+        ls -al  ~/.stack
+        tree -d ~/.stack
+
+    ## Updating the stack pantry (package index)
+    ########################################################################
+    ##
+    ## `stack update` must come before `stack setup` (which includes a `stack update` if no pantry is present)
+
+    - name: Restore cached stack package index
+      uses: actions/cache/restore@v3
+      id:   cache-pantry
+      with:
+        path: ~/.stack/pantry
+        key:  ${{ runner.os }}-stack-${{ env.STACK_VERSION }}-resolver-${{ env.STACK_RESOLVER }}-pantry
+
+    - name: Update stack package index
+      if:   steps.cache-pantry.outputs.cache-hit != 'true'
+      run: |
+        stack update
+
+    - name: Cache stack package index
+      if:   steps.cache-pantry.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v3
+      with:
+        path: ~/.stack/pantry
+        key:  ${{ steps.cache-pantry.outputs.cache-primary-key }}
+
+    - name: List ~/.stack
+      run: |
+        du -d0  ~/.stack
+        ls -al  ~/.stack
+        tree -d ~/.stack
 
     ## Installing GHC via Stack
     ########################################################################
@@ -101,6 +136,8 @@ jobs:
         stack setup
         GHC_VERSION="$(stack ghc -- --numeric-version)"
         echo "GHC_VERSION=${GHC_VERSION}" >> "${GITHUB_ENV}"
+        # Remove tarball
+        find ~/.stack -name "ghc*.tar.bz2" -delete
 
     - name: Cache GHC
       if:   steps.cache-ghc.outputs.cache-hit != 'true'
@@ -109,36 +146,18 @@ jobs:
         path: ~/.stack/programs
         key:  ${{ steps.cache-ghc.outputs.cache-primary-key }}
 
-
-    ## Updating the stack pantry (package index)
-    ########################################################################
-
-    - name: Restore cached stack package index
-      uses: actions/cache/restore@v3
-      id:   cache-pantry
-      with:
-        path: ~/.stack/pantry
-        key:  ${{ runner.os }}-stack-${{ env.STACK_VERSION }}-resolver-${{ env.STACK_RESOLVER }}-pantry
-
-    - name: Update stack package index
-      if:   steps.cache-pantry.outputs.cache-hit != 'true'
+    - name: List ~/.stack
       run: |
-        stack update
-
-    - name: Cache stack package index
-      if:   steps.cache-pantry.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v3
-      with:
-        path: ~/.stack/pantry
-        key:  ${{ steps.cache-pantry.outputs.cache-primary-key }}
-
+        du -d0  ~/.stack
+        ls -al  ~/.stack
+        tree -d ~/.stack
 
     ## Building the dependencies
     ########################################################################
 
     - name: Stack build plan
       run: |
-        stack build --dry-run 2> .plan.txt
+        stack build --test --bench --dry-run 2> .plan.txt
 
     - name: Restore cached dependencies
       uses: actions/cache/restore@v3
@@ -157,7 +176,7 @@ jobs:
     - name: Build dependencies
       if:   steps.cache-deps.outputs.cache-hit != 'true'
       run: |
-        stack build --only-dependencies
+        stack build --test --bench --only-dependencies
 
     - name: Cache dependencies
       if:   steps.cache-deps.outputs.cache-hit != 'true'
@@ -167,6 +186,15 @@ jobs:
           ~/.stack/snapshots
           ~/.stack/stack.sqlite3
         key:  ${{ steps.cache-deps.outputs.cache-primary-key }}
+
+    - name: List ~/.stack
+      run: |
+        du -d0  ~/.stack
+        ls -al  ~/.stack
+        tree -d ~/.stack
+
+    ## Build and test the project
+    ########################################################################
 
     - name: Build
       run: |
@@ -193,6 +221,7 @@ jobs:
 
     - name: Build tutorial
       run: |
+        pushd deps/ ; ./get-deps.sh -a cpu -c; popd
         stack build tintin
         pushd hasktorch
         stack exec tintin -- run
