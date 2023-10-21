@@ -63,11 +63,33 @@ jobs:
       ## Stack is preinstalled on the GHA runners
       #  (wget -qO- https://get.haskellstack.org/ | sh) || true
 
+
+    ## Setup stack
+    ########################################################################
+
+    - name: Setup stack, determine stack and resolver version
+      ## Instruct stack to use the preinstalled ghc if its version matches the resolver
+      run: |
+        yq --version
+        stack config set system-ghc --global true
+        echo "STACK_ROOT     = ${STACK_ROOT}"
+        # Determine stack version
+        STACK_VERSION="$(stack --numeric-version)"
+        echo "STACK_VERSION  = ${STACK_VERSION}"
+        # Determine resolver used by this project
+        STACK_RESOLVER=$(yq .resolver stack.yaml)
+        echo "STACK_RESOLVER = ${STACK_RESOLVER}"
+        # Save values for future steps
+        cat >> "${GITHUB_ENV}" <<EOF
+        STACK_VERSION=${STACK_VERSION}
+        STACK_RESOLVER=${STACK_RESOLVER}
+        EOF
+
     - name: List ~/.stack
       run: |
-        du -d0  ~/.stack || true
-        ls -al  ~/.stack || true
-        tree -d ~/.stack || true
+        du   -hd0    ~/.stack || true
+        ls   -al     ~/.stack || true
+        tree -L 2 -d ~/.stack || true
 
     ## Updating the stack pantry (package index)
     ########################################################################
@@ -95,9 +117,9 @@ jobs:
 
     - name: List ~/.stack
       run: |
-        du -d0  ~/.stack || true
-        ls -al  ~/.stack || true
-        tree -d ~/.stack || true
+        du   -hd0    ~/.stack || true
+        ls   -al     ~/.stack || true
+        tree -L 2 -d ~/.stack || true
 
     ## Installing GHC via Stack
     ########################################################################
@@ -105,24 +127,6 @@ jobs:
     ## The GHC version is determined by the resolver as specified in stack.yaml.
     ## Thus, we let Stack install GHC here,
     ## but we cache it separately so it does not get duplicated over caches.
-
-    - name: Setup stack, determine stack version
-      ## Instruct stack to use the preinstalled ghc if its version matches the resolver
-      run: |
-        yq --version
-        stack config set system-ghc --global true
-        echo "STACK_ROOT     = ${STACK_ROOT}"
-        # Determine stack version
-        STACK_VERSION="$(stack --numeric-version)"
-        echo "STACK_VERSION  = ${STACK_VERSION}"
-        # Determine resolver used by this project
-        STACK_RESOLVER=$(yq .resolver stack.yaml)
-        echo "STACK_RESOLVER = ${STACK_RESOLVER}"
-        # Save values for future steps
-        cat >> "${GITHUB_ENV}" <<EOF
-        STACK_VERSION=${STACK_VERSION}
-        STACK_RESOLVER=${STACK_RESOLVER}
-        EOF
 
     - name: Restore cached GHC
       uses: actions/cache/restore@v3
@@ -148,22 +152,23 @@ jobs:
 
     - name: List ~/.stack
       run: |
-        du -d0  ~/.stack || true
-        ls -al  ~/.stack || true
-        tree -d ~/.stack || true
+        du   -hd0    ~/.stack || true
+        ls   -al     ~/.stack || true
+        tree -L 2 -d ~/.stack || true
 
     ## Building the dependencies
     ########################################################################
 
     - name: Stack build plan
       run: |
-        stack build --test --bench --dry-run 2> .plan.txt
+        stack build --test --dry-run 2> .plan.txt
+        cat .plan.txt
 
     - name: Restore cached dependencies
       uses: actions/cache/restore@v3
       id:   cache-deps
       env:
-        key: ${{ runner.os }}-stack-${{ env.STACK_VERSION }}-ghc-${{ env.GHC_VERSION }}
+        key: ${{ runner.os }}-stack-${{ env.STACK_VERSION }}-ghc-${{ env.GHC_VERSION }}-deps
       with:
         path: |
           ~/.stack/snapshots
@@ -176,7 +181,7 @@ jobs:
     - name: Build dependencies
       if:   steps.cache-deps.outputs.cache-hit != 'true'
       run: |
-        stack build --test --bench --only-dependencies
+        stack build --test --only-dependencies
 
     - name: Cache dependencies
       if:   steps.cache-deps.outputs.cache-hit != 'true'
@@ -189,9 +194,9 @@ jobs:
 
     - name: List ~/.stack
       run: |
-        du -d0  ~/.stack || true
-        ls -al  ~/.stack || true
-        tree -d ~/.stack || true
+        du   -hd0    ~/.stack || true
+        ls   -al     ~/.stack || true
+        tree -L 2 -d ~/.stack || true
 
     ## Build and test the project
     ########################################################################
@@ -200,7 +205,7 @@ jobs:
       run: |
         #source setenv
         #pushd deps/ ; ./get-deps.sh -a cpu -c; popd
-        stack build \
+        stack build --test --no-run-tests \
           libtorch-ffi \
           libtorch-ffi-helper \
           hasktorch \
@@ -210,24 +215,45 @@ jobs:
           dataloader-cifar10 \
           untyped-nlp
 
+    - name: List .stack-work
+      run: |
+        du   -hd0    .stack-work || true
+        ls   -al     .stack-work || true
+        tree -L 2 -d .stack-work || true
+
     - name: Test
       run: |
         #source setenv
         stack test codegen
         stack test libtorch-ffi
         stack test hasktorch
+
+    - name: List .stack-work
+      run: |
+        du   -hd0    .stack-work || true
+        ls   -al     .stack-work || true
+        tree -L 2 -d .stack-work || true
+
+    - name: Runs
+      run: |
         stack exec codegen-exe
         stack exec xor-mlp
 
     - name: Build tutorial
       run: |
         pushd deps/ ; ./get-deps.sh -a cpu -c; popd
-        stack build tintin
+        stack build --test --no-run-tests tintin
         pushd hasktorch
         stack exec tintin -- run
         popd
         mkdir -p public/tutorial
         cp -r hasktorch/.stack-work/tintin/rendered/* public/tutorial
+
+    - name: List .stack-work
+      run: |
+        du   -hd0    .stack-work || true
+        ls   -al     .stack-work || true
+        tree -L 2 -d .stack-work || true
 
     - name: Deploy tutorial
       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
