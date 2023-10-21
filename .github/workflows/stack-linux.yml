@@ -42,27 +42,30 @@ jobs:
         docker rmi $(docker image ls -aq)
         df -h
 
-    ## This was the old step
-    # - name: Setup packages
-    #   run: |
-    #     sudo rm -f /etc/apt/sources.list.d/sbt.list
-    #     sudo apt update -qq
-    #     sudo apt -y --allow-downgrades --allow-remove-essential --allow-change-held-packages install cmake curl wget unzip git libtinfo-dev python3 python3-yaml
-
-    ## This is the step copied from cabal-linux.yml
-    - name: Setup packages
+    - name: Setup Linux packages
       run: |
-        sudo apt update -qq
-        sudo apt -y --allow-downgrades --allow-remove-essential --allow-change-held-packages install locales software-properties-common apt-transport-https
-        sudo bash -c "echo deb [trusted=yes] https://apt-hasktorch.com/apt ./ > /etc/apt/sources.list.d/libtorch.list"
         sudo rm -f /etc/apt/sources.list.d/sbt.list
         sudo apt update -qq
-        ##sudo apt -y purge ghc* cabal-install* php* || true
-        sudo apt -y --allow-downgrades --allow-remove-essential --allow-change-held-packages install build-essential zlib1g-dev liblapack-dev libblas-dev devscripts debhelper python3-pip cmake curl wget unzip git libtinfo-dev python3 python3-yaml
-        sudo apt -y install libtorch=1.11.0+cpu-1 libtokenizers=0.1-1
+        sudo apt -y --allow-downgrades --allow-remove-essential --allow-change-held-packages install cmake curl wget unzip git libtinfo-dev python3 python3-yaml
+
+    # ## This would be the step copied from cabal-linux.yml
+    # - name: Setup Linux packages
+    #   run: |
+    #     sudo apt update -qq
+    #     sudo apt -y --allow-downgrades --allow-remove-essential --allow-change-held-packages install locales software-properties-common apt-transport-https
+    #     sudo bash -c "echo deb [trusted=yes] https://apt-hasktorch.com/apt ./ > /etc/apt/sources.list.d/libtorch.list"
+    #     sudo rm -f /etc/apt/sources.list.d/sbt.list
+    #     sudo apt update -qq
+    #     ##sudo apt -y purge ghc* cabal-install* php* || true
+    #     sudo apt -y --allow-downgrades --allow-remove-essential --allow-change-held-packages install build-essential zlib1g-dev liblapack-dev libblas-dev devscripts debhelper python3-pip cmake curl wget unzip git libtinfo-dev python3 python3-yaml
+    #     sudo apt -y install libtorch=1.11.0+cpu-1 libtokenizers=0.1-1
       ## Stack is preinstalled on the GHA runners
       #  (wget -qO- https://get.haskellstack.org/ | sh) || true
 
+    - name: Download extra dependencies
+      working-directory: deps
+      run: |
+        ./get-deps.sh -a cpu -c
 
     ## Setup stack
     ########################################################################
@@ -91,35 +94,35 @@ jobs:
         ls   -al     ~/.stack || true
         tree -L 2 -d ~/.stack || true
 
-    ## Updating the stack pantry (package index)
-    ########################################################################
-    ##
-    ## `stack update` must come before `stack setup` (which includes a `stack update` if no pantry is present)
+    # ## Updating the stack pantry (package index)
+    # ########################################################################
+    # ##
+    # ## `stack update` must come before `stack setup` (which includes a `stack update` if no pantry is present)
 
-    - name: Restore cached stack package index
-      uses: actions/cache/restore@v3
-      id:   cache-pantry
-      with:
-        path: ~/.stack/pantry
-        key:  ${{ runner.os }}-stack-${{ env.STACK_VERSION }}-resolver-${{ env.STACK_RESOLVER }}-pantry
+    # - name: Restore cached stack package index
+    #   uses: actions/cache/restore@v3
+    #   id:   cache-pantry
+    #   with:
+    #     path: ~/.stack/pantry
+    #     key:  ${{ runner.os }}-stack-${{ env.STACK_VERSION }}-resolver-${{ env.STACK_RESOLVER }}-pantry
 
-    - name: Update stack package index
-      if:   steps.cache-pantry.outputs.cache-hit != 'true'
-      run: |
-        stack update
+    # - name: Update stack package index
+    #   if:   steps.cache-pantry.outputs.cache-hit != 'true'
+    #   run: |
+    #     stack update
 
-    - name: Cache stack package index
-      if:   steps.cache-pantry.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v3
-      with:
-        path: ~/.stack/pantry
-        key:  ${{ steps.cache-pantry.outputs.cache-primary-key }}
+    # - name: Cache stack package index
+    #   if:   steps.cache-pantry.outputs.cache-hit != 'true'
+    #   uses: actions/cache/save@v3
+    #   with:
+    #     path: ~/.stack/pantry
+    #     key:  ${{ steps.cache-pantry.outputs.cache-primary-key }}
 
-    - name: List ~/.stack
-      run: |
-        du   -hd0    ~/.stack || true
-        ls   -al     ~/.stack || true
-        tree -L 2 -d ~/.stack || true
+    # - name: List ~/.stack
+    #   run: |
+    #     du   -hd0    ~/.stack || true
+    #     ls   -al     ~/.stack || true
+    #     tree -L 2 -d ~/.stack || true
 
     ## Installing GHC via Stack
     ########################################################################
@@ -132,8 +135,10 @@ jobs:
       uses: actions/cache/restore@v3
       id:   cache-ghc
       with:
-        path: ~/.stack/programs
-        key:  ${{ runner.os }}-stack-${{ env.STACK_VERSION }}-resolver-${{ env.STACK_RESOLVER }}-programs
+        path: |
+          ~/.stack/programs
+          ~/.stack/stack.sqlite3
+        key:  ${{ runner.os }}-stack-${{ env.STACK_VERSION }}-resolver-${{ env.STACK_RESOLVER }}-setup
 
     - name: Setup GHC via stack
       run: |
@@ -203,8 +208,7 @@ jobs:
 
     - name: Build
       run: |
-        #source setenv
-        #pushd deps/ ; ./get-deps.sh -a cpu -c; popd
+        source setenv
         stack build --test --no-run-tests \
           libtorch-ffi \
           libtorch-ffi-helper \
@@ -223,7 +227,7 @@ jobs:
 
     - name: Test
       run: |
-        #source setenv
+        source setenv
         stack test codegen
         stack test libtorch-ffi
         stack test hasktorch
@@ -236,12 +240,13 @@ jobs:
 
     - name: Runs
       run: |
+        source setenv
         stack exec codegen-exe
         stack exec xor-mlp
 
     - name: Build tutorial
       run: |
-        pushd deps/ ; ./get-deps.sh -a cpu -c; popd
+        source setenv
         stack build --test --no-run-tests tintin
         pushd hasktorch
         stack exec tintin -- run
