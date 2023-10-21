@@ -65,9 +65,9 @@ jobs:
 
     - name: List ~/.stack
       run: |
-        du -d0  ~/.stack
-        ls -al  ~/.stack
-        tree -d ~/.stack
+        du -d0  ~/.stack || true
+        ls -al  ~/.stack || true
+        tree -d ~/.stack || true
 
     ## Updating the stack pantry (package index)
     ########################################################################
@@ -95,9 +95,9 @@ jobs:
 
     - name: List ~/.stack
       run: |
-        du -d0  ~/.stack
-        ls -al  ~/.stack
-        tree -d ~/.stack
+        du -d0  ~/.stack || true
+        ls -al  ~/.stack || true
+        tree -d ~/.stack || true
 
     ## Installing GHC via Stack
     ########################################################################
@@ -148,9 +148,9 @@ jobs:
 
     - name: List ~/.stack
       run: |
-        du -d0  ~/.stack
-        ls -al  ~/.stack
-        tree -d ~/.stack
+        du -d0  ~/.stack || true
+        ls -al  ~/.stack || true
+        tree -d ~/.stack || true
 
     ## Building the dependencies
     ########################################################################
@@ -189,9 +189,9 @@ jobs:
 
     - name: List ~/.stack
       run: |
-        du -d0  ~/.stack
-        ls -al  ~/.stack
-        tree -d ~/.stack
+        du -d0  ~/.stack || true
+        ls -al  ~/.stack || true
+        tree -d ~/.stack || true
 
     ## Build and test the project
     ########################################################################
